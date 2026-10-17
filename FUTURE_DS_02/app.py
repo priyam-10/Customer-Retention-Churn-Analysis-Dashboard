@@ -32,11 +32,27 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 div[data-testid="stPlotlyChart"] {{ background:#fff; border-radius:12px; padding:6px; }}
 section[data-testid="stSidebar"] {{ background:#ffffff; }}
 section[data-testid="stSidebar"] * {{ color:{INK} !important; }}
-div[data-baseweb="select"] > div {{ background:#ffffff !important; border:1px solid #c9c3d6 !important; }}
-div[data-baseweb="select"] * {{ color:{INK} !important; }}
-div[data-baseweb="popover"], div[data-baseweb="popover"] ul, ul[role="listbox"] {{ background:#ffffff !important; }}
-ul[role="listbox"] li {{ background:#ffffff !important; color:{INK} !important; }}
-ul[role="listbox"] li:hover, ul[role="listbox"] li[aria-selected="true"] {{ background:#ece6f6 !important; }}
+/* ---- Dropdowns: always white with dark text (works even in Streamlit dark mode) ---- */
+[data-testid="stSelectbox"] div[data-baseweb="select"],
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+[data-testid="stSelectbox"] div[data-baseweb="select"] div,
+[data-testid="stSelectbox"] div:not([data-testid="stWidgetLabel"]):not([data-testid="stWidgetLabel"] *) {{
+  background-color:#ffffff !important; color:{INK} !important; }}
+[data-testid="stSelectbox"] > div > div:last-child, [data-testid="stSelectbox"] div[data-baseweb="select"] > div {{
+  border:1px solid #c9c3d6 !important; border-radius:8px !important; }}
+[data-testid="stSelectbox"] div[data-baseweb="select"] span,
+[data-testid="stSelectbox"] div[data-baseweb="select"] input,
+[data-testid="stSelectbox"] div, [data-testid="stSelectbox"] span, [data-testid="stSelectbox"] input {{
+  color:{INK} !important; -webkit-text-fill-color:{INK} !important; opacity:1 !important; }}
+[data-testid="stSelectbox"] svg {{ fill:{INK} !important; color:{INK} !important; }}
+div[data-baseweb="popover"], div[data-baseweb="popover"] > div, div[data-baseweb="menu"],
+div[data-baseweb="popover"] ul, ul[role="listbox"], [data-testid="stSelectboxVirtualDropdown"] {{
+  background-color:#ffffff !important; }}
+ul[role="listbox"] li, [role="option"], [role="option"] * {{
+  background-color:#ffffff !important; color:{INK} !important; }}
+ul[role="listbox"] li:hover, [role="option"]:hover, [role="option"]:hover *,
+[role="option"][aria-selected="true"], [role="option"][aria-selected="true"] * {{
+  background-color:#ece6f6 !important; }}
 .foot {{ color:#fff; text-align:center; margin-top:10px; }}
 .foot a {{ color:#fff !important; text-decoration:underline; }}
 </style>
