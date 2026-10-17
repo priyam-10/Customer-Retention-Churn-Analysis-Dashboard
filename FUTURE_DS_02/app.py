@@ -32,6 +32,11 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 div[data-testid="stPlotlyChart"] {{ background:#fff; border-radius:12px; padding:6px; }}
 section[data-testid="stSidebar"] {{ background:#ffffff; }}
 section[data-testid="stSidebar"] * {{ color:{INK} !important; }}
+div[data-baseweb="select"] > div {{ background:#ffffff !important; border:1px solid #c9c3d6 !important; }}
+div[data-baseweb="select"] * {{ color:{INK} !important; }}
+div[data-baseweb="popover"], div[data-baseweb="popover"] ul, ul[role="listbox"] {{ background:#ffffff !important; }}
+ul[role="listbox"] li {{ background:#ffffff !important; color:{INK} !important; }}
+ul[role="listbox"] li:hover, ul[role="listbox"] li[aria-selected="true"] {{ background:#ece6f6 !important; }}
 .foot {{ color:#fff; text-align:center; margin-top:10px; }}
 .foot a {{ color:#fff !important; text-decoration:underline; }}
 </style>
@@ -102,11 +107,11 @@ def rate(col, order=None):
 
 
 def style(fig, title, h=300):
-    fig.update_layout(title=dict(text=title, font=dict(color=INK, size=17)), height=h,
+    fig.update_layout(template="plotly_white", title=dict(text=title, font=dict(color=INK, size=17)), height=h,
                       paper_bgcolor="white", plot_bgcolor="white", font=dict(color=INK, size=13),
-                      margin=dict(l=10, r=30, t=50, b=10), showlegend=False)
-    fig.update_xaxes(showgrid=False, color=INK, title=None)
-    fig.update_yaxes(showgrid=False, color=INK, title=None)
+                      margin=dict(l=10, r=60, t=50, b=10), showlegend=False)
+    fig.update_xaxes(showgrid=False, color=INK, title=None, tickfont=dict(color=INK, size=13), automargin=True)
+    fig.update_yaxes(showgrid=False, color=INK, title=None, tickfont=dict(color=INK, size=13), automargin=True)
     return fig
 
 
@@ -136,17 +141,17 @@ fig = go.Figure(go.Pie(labels=pie.index, values=pie.values, marker_colors=["#118
                        textfont_color=INK))
 fig = style(fig, "Total Customers by Churn")
 fig.update_layout(showlegend=True, legend=dict(font=dict(color=INK)))
-c1.plotly_chart(fig, use_container_width=True, config=cfg)
-c2.plotly_chart(hbar("PaymentMethod", "Churn Rate by PaymentMethod"), use_container_width=True, config=cfg)
-c3.plotly_chart(hbar("InternetService", "Churn Rate by InternetService"), use_container_width=True, config=cfg)
+c1.plotly_chart(fig, use_container_width=True, config=cfg, theme=None)
+c2.plotly_chart(hbar("PaymentMethod", "Churn Rate by PaymentMethod"), use_container_width=True, config=cfg, theme=None)
+c3.plotly_chart(hbar("InternetService", "Churn Rate by InternetService"), use_container_width=True, config=cfg, theme=None)
 
 # Row 2
 c1, c2, c3, c4 = st.columns([1.8, 1, 1, 1])
 c1.plotly_chart(vbar("Contract", "Churn Rate by Contract", ["Month-to-month", "One year", "Two year"]),
-                use_container_width=True, config=cfg)
-c2.plotly_chart(vbar("gender", "Churn Rate by gender", ["Female", "Male"]), use_container_width=True, config=cfg)
-c3.plotly_chart(vbar("Partner", "Churn Rate by Partner", ["No", "Yes"]), use_container_width=True, config=cfg)
-c4.plotly_chart(vbar("Dependents", "Churn Rate by Dependents", ["No", "Yes"]), use_container_width=True, config=cfg)
+                use_container_width=True, config=cfg, theme=None)
+c2.plotly_chart(vbar("gender", "Churn Rate by gender", ["Female", "Male"]), use_container_width=True, config=cfg, theme=None)
+c3.plotly_chart(vbar("Partner", "Churn Rate by Partner", ["No", "Yes"]), use_container_width=True, config=cfg, theme=None)
+c4.plotly_chart(vbar("Dependents", "Churn Rate by Dependents", ["No", "Yes"]), use_container_width=True, config=cfg, theme=None)
 
 # Row 3
 c1, c2, c3 = st.columns([1.3, 1.3, 1])
@@ -156,16 +161,16 @@ fig = go.Figure(go.Scatter(x=t["TenureGroup"].astype(str), y=t["Rate"], mode="li
                            text=t["Rate"].map(lambda v: f"{v:.2f}%"), textposition="top right",
                            textfont=dict(color=INK)))
 fig.update_yaxes(visible=False, range=[0, t["Rate"].max() * 1.3])
-c1.plotly_chart(style(fig, "Churn Rate by Tenure Group"), use_container_width=True, config=cfg)
+c1.plotly_chart(style(fig, "Churn Rate by Tenure Group"), use_container_width=True, config=cfg, theme=None)
 
 clv = d.groupby("Contract")["TotalCharges"].mean().sort_values().reset_index()
 fig = px.bar(clv, x="TotalCharges", y="Contract", orientation="h",
              text=clv["TotalCharges"].map(lambda v: f"{v/1000:.1f}K"))
 fig.update_traces(marker_color=BAR, textposition="outside", textfont_color=INK, cliponaxis=False)
 fig.update_xaxes(visible=False)
-c2.plotly_chart(style(fig, "Average Customer Lifetime Value by Contract"), use_container_width=True, config=cfg)
+c2.plotly_chart(style(fig, "Average Customer Lifetime Value by Contract"), use_container_width=True, config=cfg, theme=None)
 c3.plotly_chart(vbar("TechSupport", "Churn Rate by TechSupport", ["No", "Yes", "No internet service"], 300),
-                use_container_width=True, config=cfg)
+                use_container_width=True, config=cfg, theme=None)
 
 st.markdown(f'<div class="foot">Data: Telco Customer Churn · <a href="{REPO_URL}" target="_blank">GitHub repository</a></div>',
             unsafe_allow_html=True)
