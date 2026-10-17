@@ -1,246 +1,546 @@
-import io
-from datetime import date
-import requests
+"""
+Customer Retention & Churn Analysis Dashboard  (Streamlit version)
+Replica of the Power BI dashboard, built on the Telco Customer Churn dataset.
+"""
+from pathlib import Path
+
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-REPO_URL = "https://github.com/priyam-10/Customer-Retention-Churn-Analysis-Dashboard"
-# The earlier starter used this common Telco churn dataset path. If your repo uses another path,
-# use the CSV uploader in the sidebar or update DATA_URL below.
-DATA_URL = "https://raw.githubusercontent.com/priyam-10/Customer-Retention-Churn-Analysis-Dashboard/main/FUTURE_DS_02/Dataset/WA_Fn-UseC_-Telco-Customer-Churn.csv"
+# --------------------------------------------------------------------------
+# CONFIG
+# --------------------------------------------------------------------------
+GITHUB_URL = "https://github.com/priyam-10/Customer-Retention-Churn-Analysis-Dashboard"
+RAW_CSV_URL = (
+    "https://raw.githubusercontent.com/priyam-10/Customer-Retention-Churn-Analysis-Dashboard/"
+    "main/FUTURE_DS_02/Dataset/WA_Fn-UseC_-Telco-Customer-Churn.csv"
+)
+LOCAL_CSV_CANDIDATES = [
+    "FUTURE_DS_02/Dataset/WA_Fn-UseC_-Telco-Customer-Churn.csv",
+    "Dataset/WA_Fn-UseC_-Telco-Customer-Churn.csv",
+    "WA_Fn-UseC_-Telco-Customer-Churn.csv",
+    "data.csv",
+]
 
-st.set_page_config(page_title="Customer Retention & Churn Analysis Dashboard", page_icon="💜", layout="wide", initial_sidebar_state="expanded")
+# Colours (text/background pairs chosen for strong contrast)
+PURPLE_DARK = "#3B2667"   # header bar
+PURPLE_BAR = "#5B3C91"    # bars / lines
+BG_TOP, BG_BOTTOM = "#170D2E", "#2A1857"
+CARD_BG = "#FFFFFF"
+TEXT_DARK = "#1F1535"     # text on white cards
+TEXT_LIGHT = "#FFFFFF"    # text on dark purple
+BLUE_NO, BLUE_YES = "#118DFF", "#12239E"
 
-st.markdown("""
+st.set_page_config(
+    page_title="Customer Retention & Churn Analysis",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+# --------------------------------------------------------------------------
+# STYLES
+# --------------------------------------------------------------------------
+st.markdown(
+    f"""
 <style>
-:root { --purple:#39245f; --bar:#5b3b91; --ink:#28252d; }
-.stApp { background: linear-gradient(135deg,#180d45 0%,#28105d 55%,#130b39 100%); }
-.block-container {padding: 1rem 1.25rem 1.2rem; max-width: 1800px;}
-header[data-testid="stHeader"] {background: transparent;}
-h1,h2,h3,p,label,span,div { }
-.hero {background:#39245f; border:1px solid #7761a3; border-radius:8px; padding:16px 20px; color:white; margin-bottom:8px;}
-.hero-title {font-size:30px; font-weight:800; line-height:1.1;}
-.hero-sub {font-size:15px; font-weight:600; margin-top:5px;}
-.hero a {color:white !important;}
-[data-testid="stMetric"] {background:#fff; border:1px solid #d4d0da; border-radius:12px; padding:12px 14px; min-height:100px;}
-[data-testid="stMetricLabel"] {color:#27232d; font-size:14px;}
-[data-testid="stMetricValue"] {color:#28252d; font-size:29px;}
-[data-testid="stVerticalBlockBorderWrapper"] {background:#fff; border-radius:12px; padding:5px;}
-section[data-testid="stSidebar"] {background:#f8f7fb;}
-section[data-testid="stSidebar"] * {color:#28252d;}
-div[data-testid="stPlotlyChart"] {background:#fff; border-radius:10px; padding:4px;}
-.stTabs [data-baseweb="tab-list"] {gap:8px;}
-.stTabs [data-baseweb="tab"] {background:#f5f2fa; border-radius:8px 8px 0 0; padding:8px 15px;}
-a {color:#4d3181;}
+/* ---------- page ---------- */
+.stApp {{ background: linear-gradient(135deg, {BG_TOP} 0%, {BG_BOTTOM} 100%); }}
+header[data-testid="stHeader"], #MainMenu, footer {{ visibility: hidden; height: 0; }}
+.block-container {{ padding: 1rem 1.5rem 2rem 1.5rem; max-width: 1700px; }}
+div[data-testid="stHorizontalBlock"] {{ gap: 0.9rem; }}
+div[data-testid="stVerticalBlock"] {{ gap: 0.9rem; }}
+
+/* ---------- header ---------- */
+.hdr {{
+  display:flex; align-items:center; gap:22px; background:{PURPLE_DARK};
+  padding:14px 22px; border-radius:6px; flex-wrap:wrap;
+}}
+.hdr .logo {{
+  background:#fff; border-radius:18px; width:84px; height:84px; display:flex;
+  align-items:center; justify-content:center; font-size:42px; flex:0 0 auto;
+}}
+.hdr .ttl {{ flex:1 1 420px; }}
+.hdr h1 {{ color:{TEXT_LIGHT}; font-size:2.35rem; font-weight:800; margin:0; padding:0; line-height:1.15; }}
+.hdr p  {{ color:{TEXT_LIGHT}; font-size:1.1rem; font-weight:600; margin:6px 0 0 0; }}
+.hdr .links {{ display:flex; gap:12px; flex-wrap:wrap; }}
+.hdr a.btn {{
+  text-decoration:none !important; font-weight:700; font-size:1.05rem; padding:10px 20px;
+  border-radius:10px; border:3px solid #000; background:#fff; color:{TEXT_DARK} !important;
+  white-space:nowrap;
+}}
+.hdr a.btn:hover {{ background:#EDE7FA; }}
+.hdr a.btn.gh {{ background:#111; color:#fff !important; border-color:#fff; }}
+.hdr a.btn.gh:hover {{ background:#333; }}
+
+/* ---------- white cards ---------- */
+[class*="st-key-card"] {{
+  background:{CARD_BG}; border-radius:16px; padding:12px 16px 8px 16px;
+  box-shadow:0 2px 8px rgba(0,0,0,.35); border:1px solid #D9D2EA;
+}}
+[class*="st-key-card"] * {{ color:{TEXT_DARK}; }}
+.card-title {{ font-size:1.12rem; font-weight:700; letter-spacing:.2px; margin:0 0 2px 2px; color:{TEXT_DARK}; }}
+
+/* ---------- KPI cards ---------- */
+.kpi {{
+  background:{CARD_BG}; border-radius:16px; padding:14px 18px; display:flex; align-items:center;
+  justify-content:space-between; box-shadow:0 2px 8px rgba(0,0,0,.35); border:1px solid #D9D2EA;
+  min-height:110px;
+}}
+.kpi .icon {{ font-size:3rem; line-height:1; }}
+.kpi .body {{ text-align:right; }}
+.kpi .lbl {{ font-size:1.1rem; color:{TEXT_DARK}; font-weight:500; }}
+.kpi .val {{ font-size:2.7rem; color:{TEXT_DARK}; font-weight:800; line-height:1.1; }}
+
+/* ---------- filters ---------- */
+.st-key-card_filters {{ min-height: 1080px; }}
+.st-key-card_filters label p {{ font-weight:700; font-size:1rem; color:{TEXT_DARK} !important; }}
+.st-key-card_filters div[data-baseweb="select"] > div {{
+  background:#fff; border:1px solid #C9BFE0; color:{TEXT_DARK};
+}}
+.st-key-card_filters div[data-baseweb="select"] * {{ color:{TEXT_DARK} !important; }}
+
+/* ---------- misc text on dark background ---------- */
+.on-dark, .on-dark * {{ color:{TEXT_LIGHT} !important; }}
+.footer {{ text-align:center; padding:6px 0 0 0; }}
+.footer a {{ color:#FFD166 !important; font-weight:700; }}
+.insight-text {{ font-size:1.02rem; line-height:1.55; }}
+.insight-text li {{ margin-bottom:6px; }}
+.rec-num {{ font-weight:800; color:{PURPLE_BAR}; }}
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-@st.cache_data(ttl=1800, show_spinner=False)
-def load_repo_data():
-    r = requests.get(DATA_URL, timeout=25)
-    r.raise_for_status()
-    return pd.read_csv(io.BytesIO(r.content))
 
-def clean_data(df):
-    df = df.copy()
-    df.columns = [str(c).strip() for c in df.columns]
-    for c in ["tenure", "MonthlyCharges", "TotalCharges", "SeniorCitizen"]:
-        if c in df:
-            df[c] = pd.to_numeric(df[c], errors="coerce")
-    for c in df.select_dtypes(include="object"):
-        df[c] = df[c].replace({"": None, "nan": None, "NaN": None})
-    if "Churn" in df:
-        df["Churn"] = df["Churn"].astype(str).str.strip()
+# --------------------------------------------------------------------------
+# DATA
+# --------------------------------------------------------------------------
+@st.cache_data(show_spinner="Loading dataset…")
+def load_data() -> pd.DataFrame:
+    df = None
+    for p in LOCAL_CSV_CANDIDATES:
+        if Path(p).exists():
+            df = pd.read_csv(p)
+            break
+    if df is None:
+        df = pd.read_csv(RAW_CSV_URL)
+
+    # same cleaning as Power Query: blank TotalCharges rows are removed (11 rows)
+    df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
+    df = df.dropna(subset=["TotalCharges"]).copy()
+
+    df["SeniorCitizen"] = df["SeniorCitizen"].map({0: "No", 1: "Yes"})
+    df["ChurnFlag"] = (df["Churn"] == "Yes").astype(int)
+    df["TenureGroup"] = pd.cut(
+        df["tenure"],
+        bins=[-1, 12, 24, 48, 10_000],
+        labels=["0-12 Months", "13-24 Months", "25-48 Months", "49+ Months"],
+    )
     return df
 
-def pct_by(df, col):
-    return (df.groupby(col, dropna=False)["Churn"]
-            .apply(lambda s: (s == "Yes").mean() * 100)
-            .rename("Churn Rate").reset_index()
-            .sort_values("Churn Rate", ascending=False))
 
-def plot_style(fig, title=None, height=250):
+def fmt_k(x: float, prefix: str = "") -> str:
+    if abs(x) >= 1000:
+        return f"{prefix}{x / 1000:.2f}K"
+    return f"{prefix}{x:,.0f}"
+
+
+def title(text: str) -> None:
+    st.markdown(f'<div class="card-title">{text}</div>', unsafe_allow_html=True)
+
+
+# --------------------------------------------------------------------------
+# CHART HELPERS
+# --------------------------------------------------------------------------
+def base_layout(fig: go.Figure, height: int) -> go.Figure:
     fig.update_layout(
-        title=dict(text=title or "", x=0.02, xanchor="left", font=dict(size=17, color="#28252d")),
-        height=height, margin=dict(l=10,r=12,t=42,b=12),
-        paper_bgcolor="white", plot_bgcolor="white",
-        font=dict(family="Arial", size=12, color="#77737b"),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        height=height,
+        margin=dict(l=8, r=8, t=8, b=8),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=TEXT_DARK, size=13, family="Segoe UI, Arial, sans-serif"),
+        showlegend=False,
     )
-    fig.update_xaxes(showgrid=False, linecolor="#eeeeef")
-    fig.update_yaxes(showgrid=False, gridcolor="#eeeeef")
     return fig
 
-with st.container():
-    st.markdown(f"""
-    <div class="hero">
-      <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
-        <div style="font-size:42px;background:white;border-radius:14px;padding:7px;">💝</div>
-        <div style="flex:1;min-width:300px;">
-          <div class="hero-title">Customer Retention &amp; Churn Analysis Dashboard</div>
-          <div class="hero-sub">Customer Segmentation, Retention Trends &amp; Churn Driver Analysis</div>
-        </div>
-        <a href="{REPO_URL}" target="_blank" style="text-decoration:none;background:white;color:#17131d !important;border:2px solid #17131d;border-radius:12px;padding:12px 17px;font-weight:700;">View GitHub Repository →</a>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
 
-with st.sidebar:
-    st.markdown("## Dashboard Filters")
-    st.markdown(f"[Open project repository ↗]({REPO_URL})")
-    uploaded = st.file_uploader("Upload your churn CSV", type=["csv"])
-    st.caption("If the repository CSV cannot load, upload the dataset used in Power BI.")
-    st.divider()
+def churn_rate(df: pd.DataFrame, col: str, order=None) -> pd.Series:
+    s = df.groupby(col, observed=True)["ChurnFlag"].mean() * 100
+    if order is not None:
+        s = s.reindex([o for o in order if o in s.index])
+    return s
 
-try:
-    if uploaded:
-        raw = pd.read_csv(uploaded)
-        source = uploaded.name
+
+def hbar(series: pd.Series, height: int, fmt="{:.2f}%", sort=True) -> go.Figure:
+    if sort:
+        series = series.sort_values(ascending=False)
+    fig = go.Figure(
+        go.Bar(
+            x=series.values,
+            y=series.index.astype(str),
+            orientation="h",
+            marker_color=PURPLE_BAR,
+            text=[fmt.format(v) for v in series.values],
+            textposition="outside",
+            cliponaxis=False,
+            textfont=dict(color=TEXT_DARK, size=13),
+            hovertemplate="%{y}: %{text}<extra></extra>",
+        )
+    )
+    base_layout(fig, height)
+    fig.update_yaxes(autorange="reversed", showgrid=False, tickfont=dict(color=TEXT_DARK, size=13))
+    fig.update_xaxes(visible=False, range=[0, max(series.max(), 1) * 1.28])
+    fig.update_layout(bargap=0.22)
+    return fig
+
+
+def vbar(series: pd.Series, height: int) -> go.Figure:
+    fig = go.Figure(
+        go.Bar(
+            x=series.index.astype(str),
+            y=series.values,
+            marker_color=PURPLE_BAR,
+            text=[f"{v:.2f}%" for v in series.values],
+            textposition="outside",
+            cliponaxis=False,
+            textfont=dict(color=TEXT_DARK, size=13),
+            hovertemplate="%{x}: %{text}<extra></extra>",
+        )
+    )
+    base_layout(fig, height)
+    fig.update_xaxes(showgrid=False, tickfont=dict(color=TEXT_DARK, size=13))
+    fig.update_yaxes(visible=False, range=[0, max(series.max(), 1) * 1.25])
+    fig.update_layout(bargap=0.35)
+    return fig
+
+
+def show(fig: go.Figure) -> None:
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+def empty_note() -> None:
+    st.info("No customers match the selected filters.")
+
+
+# --------------------------------------------------------------------------
+# HEADER
+# --------------------------------------------------------------------------
+def header(page: str) -> None:
+    if page == "dashboard":
+        sub = "Customer Segmentation, Retention Trends &amp; Churn Driver Analysis"
+        main_btn = '<a class="btn" href="?page=insights" target="_self">View Detailed Insights →</a>'
+        head = "Customer Retention &amp; Churn Analysis Dashboard"
     else:
-        raw = load_repo_data()
-        source = "GitHub dataset"
-except Exception as e:
-    st.warning("Automatic dataset loading did not work. Upload your churn CSV in the sidebar.")
-    with st.expander("Technical details"):
-        st.code(str(e))
-    st.stop()
+        sub = "Key Findings, Retention Drivers &amp; Business Recommendations"
+        main_btn = '<a class="btn" href="?page=dashboard" target="_self">← Back to Dashboard</a>'
+        head = "Insights &amp; Recommendations"
+    st.markdown(
+        f"""
+<div class="hdr">
+  <div class="logo">💜👥</div>
+  <div class="ttl"><h1>{head}</h1><p>{sub}</p></div>
+  <div class="links">
+    {main_btn}
+    <a class="btn gh" href="{GITHUB_URL}" target="_blank">⭐ GitHub Repo</a>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
-df = clean_data(raw)
-if "Churn" not in df.columns:
-    st.error("This dataset needs a 'Churn' column. Please upload the customer churn CSV used in your Power BI dashboard.")
-    st.stop()
 
-# Filters matching the screenshot
-filter_cols = [
-    ("Contract", "Contract Type"),
-    ("InternetService", "Internet Services"),
-    ("PaymentMethod", "Payment Method"),
-    ("gender", "Gender"),
-    ("SeniorCitizen", "SeniorCitizen"),
-    ("PhoneService", "Phone Service"),
-    ("Partner", "Partner"),
-    ("Dependents", "Dependents"),
-]
-with st.sidebar:
-    selections = {}
-    for col, label in filter_cols:
-        if col in df:
-            vals = sorted(df[col].dropna().astype(str).unique().tolist())
-            selections[col] = st.selectbox(label, ["All"] + vals, index=0)
-        else:
-            selections[col] = "All"
+def footer() -> None:
+    st.markdown(
+        f"""
+<div class="footer on-dark">
+  Built with Streamlit &amp; Plotly · Data: Telco Customer Churn ·
+  <a href="{GITHUB_URL}" target="_blank">View source on GitHub</a>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
-f = df.copy()
-for col, choice in selections.items():
-    if col in f and choice != "All":
-        f = f[f[col].astype(str) == choice]
-if f.empty:
-    st.warning("No rows match these filters. Please change one or more filters.")
-    st.stop()
 
-n = len(f)
-churn_n = int((f["Churn"] == "Yes").sum())
-retained_n = int((f["Churn"] == "No").sum())
-churn_rate = churn_n / n * 100 if n else 0
-avg_tenure = f["tenure"].mean() if "tenure" in f else float("nan")
-avg_total = f["TotalCharges"].mean() if "TotalCharges" in f else float("nan")
+# --------------------------------------------------------------------------
+# PAGE 1 – DASHBOARD
+# --------------------------------------------------------------------------
+def dashboard_page(df: pd.DataFrame) -> None:
+    header("dashboard")
 
-# KPI row styled to resemble the reference image
-k = st.columns(5, gap="small")
-k[0].metric("👥  Total Customers", f"{n/1000:.2f}K" if n >= 1000 else f"{n:,}")
-k[1].metric("🚫  Churned Customers", f"{churn_n/1000:.2f}K" if churn_n >= 1000 else f"{churn_n:,}")
-k[2].metric("🌟  Retained Customers", f"{retained_n/1000:.2f}K" if retained_n >= 1000 else f"{retained_n:,}")
-k[3].metric("⏱️  Avg Tenure", f"{avg_tenure:.2f}" if pd.notna(avg_tenure) else "—")
-k[4].metric("💰  Avg Total Charges", f"${avg_total/1000:.2f}K" if pd.notna(avg_total) and avg_total >= 1000 else (f"${avg_total:,.2f}" if pd.notna(avg_total) else "—"))
+    left, right = st.columns([1.05, 6], gap="small")
 
-purple = "#5b3b91"
-blue = "#168bf5"
-darkblue = "#172c9c"
-tab1, tab2 = st.tabs(["📊 Dashboard", "🔎 Detailed Insights"])
+    # ---------------- filters ----------------
+    with left:
+        with st.container(key="card_filters"):
+            filter_defs = [
+                ("Contract Type", "Contract"),
+                ("Internet Services", "InternetService"),
+                ("Payment Method", "PaymentMethod"),
+                ("Gender", "gender"),
+                ("SeniorCitizen", "SeniorCitizen"),
+                ("Phone Service", "PhoneService"),
+                ("Partner", "Partner"),
+                ("Dependents", "Dependents"),
+            ]
+            selections = {}
+            for label, col in filter_defs:
+                opts = ["All"] + sorted(df[col].dropna().unique().tolist())
+                selections[col] = st.selectbox(label, opts, key=f"f_{col}")
 
-with tab1:
-    top = st.columns([1.05, 1.8, 2.7, 2.7], gap="small")
-    # Churn distribution donut/pie
-    counts = f["Churn"].value_counts().reindex(["No","Yes"]).dropna().rename_axis("Churn").reset_index(name="Customers")
-    fig = px.pie(counts, names="Churn", values="Customers", hole=0,
-                 color="Churn", color_discrete_map={"No":blue,"Yes":darkblue})
-    fig.update_traces(texttemplate="%{percent:.2%}", textposition="outside", marker=dict(line=dict(color="white", width=1)))
-    top[0].plotly_chart(plot_style(fig, "Total Customers by Churn", 285), use_container_width=True)
+    f = df.copy()
+    for col, val in selections.items():
+        if val != "All":
+            f = f[f[col] == val]
 
-    if "PaymentMethod" in f:
-        p = pct_by(f, "PaymentMethod")
-        fig = px.bar(p, x="Churn Rate", y="PaymentMethod", orientation="h", text=p["Churn Rate"].map(lambda x:f"{x:.2f}%"), color_discrete_sequence=[purple])
-        fig.update_traces(textposition="outside", cliponaxis=False)
-        top[1].plotly_chart(plot_style(fig, "Churn Rate by PaymentMethod", 285), use_container_width=True)
-    if "InternetService" in f:
-        p = pct_by(f, "InternetService")
-        fig = px.bar(p, x="Churn Rate", y="InternetService", orientation="h", text=p["Churn Rate"].map(lambda x:f"{x:.2f}%"), color_discrete_sequence=[purple])
-        fig.update_traces(textposition="outside", cliponaxis=False)
-        top[2].plotly_chart(plot_style(fig, "Churn Rate by InternetService", 285), use_container_width=True)
+    with right:
+        # ---------------- KPI row ----------------
+        total = len(f)
+        churned = int(f["ChurnFlag"].sum())
+        retained = total - churned
+        avg_tenure = f["tenure"].mean() if total else 0
+        avg_total = f["TotalCharges"].mean() if total else 0
 
-    bottom = st.columns([2.2, 1.15, 1.15, 1.15], gap="small")
-    if "Contract" in f:
-        p = pct_by(f, "Contract").sort_values("Churn Rate")
-        fig = px.bar(p, x="Contract", y="Churn Rate", text=p["Churn Rate"].map(lambda x:f"{x:.2f}%"), color_discrete_sequence=[purple])
-        fig.update_traces(textposition="outside", cliponaxis=False)
-        bottom[0].plotly_chart(plot_style(fig, "Churn Rate by Contract", 220), use_container_width=True)
-    for col, title, idx in [("gender","Churn Rate by gender",1),("Partner","Churn Rate by Partner",2),("Dependents","Churn Rate by Dependents",3)]:
-        if col in f:
-            p = pct_by(f, col).sort_values(col)
-            fig = px.bar(p, x=col, y="Churn Rate", text=p["Churn Rate"].map(lambda x:f"{x:.2f}%"), color_discrete_sequence=[purple])
-            fig.update_traces(textposition="outside", cliponaxis=False)
-            bottom[idx].plotly_chart(plot_style(fig, title, 220), use_container_width=True)
+        kpis = [
+            ("👥", "Total Customers", fmt_k(total)),
+            ("🚫", "Churned Customers", fmt_k(churned)),
+            ("📈", "Retained Customers", fmt_k(retained)),
+            ("⏱️", "Avg Tenure", f"{avg_tenure:.2f}"),
+            ("💰", "Avg Total Charges", fmt_k(avg_total, "$")),
+        ]
+        for col, (icon, lbl, val) in zip(st.columns(5), kpis):
+            col.markdown(
+                f'<div class="kpi"><div class="icon">{icon}</div>'
+                f'<div class="body"><div class="lbl">{lbl}</div><div class="val">{val}</div></div></div>',
+                unsafe_allow_html=True,
+            )
 
-    lower = st.columns([2.2, 2.4, 1.3], gap="small")
-    if "tenure" in f:
-        t = f.copy()
-        t["Tenure Group"] = pd.cut(t["tenure"], bins=[-1,12,24,48,1000],
-                                   labels=["0-12 Months","13-24 Months","25-48 Months","49+ Months"])
-        p = pct_by(t.dropna(subset=["Tenure Group"]), "Tenure Group")
-        order = ["0-12 Months","13-24 Months","25-48 Months","49+ Months"]
-        p["Tenure Group"] = pd.Categorical(p["Tenure Group"], categories=order, ordered=True)
-        p = p.sort_values("Tenure Group")
-        fig = px.area(p, x="Tenure Group", y="Churn Rate", markers=True, color_discrete_sequence=[purple])
-        lower[0].plotly_chart(plot_style(fig, "Churn Rate by Tenure Group", 205), use_container_width=True)
-    if "Contract" in f and "TotalCharges" in f:
-        p = f.groupby("Contract", as_index=False)["TotalCharges"].mean().sort_values("TotalCharges")
-        fig = px.bar(p, x="TotalCharges", y="Contract", orientation="h", text=p["TotalCharges"].map(lambda x:f"{x/1000:.1f}K"), color_discrete_sequence=[purple])
-        fig.update_traces(textposition="inside")
-        lower[1].plotly_chart(plot_style(fig, "Average Customer Lifetime Value by Contract", 205), use_container_width=True)
-    if "TechSupport" in f:
-        p = pct_by(f, "TechSupport")
-        fig = px.bar(p, x="TechSupport", y="Churn Rate", text=p["Churn Rate"].map(lambda x:f"{x:.2f}%"), color_discrete_sequence=[purple])
-        fig.update_traces(textposition="outside", cliponaxis=False)
-        lower[2].plotly_chart(plot_style(fig, "Churn Rate by TechSupport", 205), use_container_width=True)
+        if total == 0:
+            empty_note()
+            return
 
-with tab2:
-    st.subheader("Detailed churn insights")
-    a, b = st.columns(2)
-    for col, title, slot in [("Contract","Churn by contract",a),("PaymentMethod","Churn by payment method",b),
-                             ("InternetService","Churn by internet service",a),("TechSupport","Churn by tech support",b)]:
-        if col in f:
-            counts = f.groupby([col,"Churn"]).size().reset_index(name="Customers")
-            slot.plotly_chart(plot_style(px.bar(counts, x=col, y="Customers", color="Churn", barmode="group",
-                                                  color_discrete_map={"No":blue,"Yes":darkblue}), title, 300),
-                              use_container_width=True)
-    st.subheader("Filtered customer records")
-    st.dataframe(f, use_container_width=True, hide_index=True)
-    st.download_button("Download filtered data CSV", f.to_csv(index=False).encode("utf-8"),
-                       "filtered_churn_customers.csv", "text/csv")
-    report = f"""CUSTOMER RETENTION & CHURN REPORT
-Generated: {date.today().isoformat()}
-Rows in current filter: {n}
-Churned customers: {churn_n}
-Retained customers: {retained_n}
-Churn rate: {churn_rate:.2f}%
-Retention rate: {100-churn_rate:.2f}%
-Average tenure: {avg_tenure:.2f} months
-Average total charges: {avg_total:.2f}
+        # ---------------- row A ----------------
+        c1, c2, c3 = st.columns([1.45, 2.4, 2.6])
 
-Source repository: {REPO_URL}
-"""
-    st.download_button("Download report TXT", report, "customer_churn_report.txt", "text/plain")
+        with c1:
+            with st.container(key="card_pie"):
+                title("Total Customers by Churn")
+                pie = go.Figure(
+                    go.Pie(
+                        labels=["No", "Yes"],
+                        values=[retained, churned],
+                        marker=dict(colors=[BLUE_NO, BLUE_YES], line=dict(color="#fff", width=1)),
+                        texttemplate="%{percent:.2%}",
+                        textposition="outside",
+                        textfont=dict(color=TEXT_DARK, size=14),
+                        sort=False,
+                        direction="clockwise",
+                        rotation=0,
+                        hovertemplate="Churn = %{label}: %{value:,}<extra></extra>",
+                    )
+                )
+                base_layout(pie, 330)
+                pie.update_layout(
+                    showlegend=True,
+                    legend=dict(orientation="h", y=-0.05, x=0.5, xanchor="center",
+                                font=dict(color=TEXT_DARK, size=13)),
+                    margin=dict(l=30, r=30, t=20, b=20),
+                )
+                show(pie)
 
-st.markdown(f"<div style='text-align:center;color:#eee;padding:8px'>Built with Streamlit · <a style='color:white' href='{REPO_URL}'>View GitHub Repository</a></div>", unsafe_allow_html=True)
+        with c2:
+            with st.container(key="card_pay"):
+                title("Churn Rate by PaymentMethod")
+                show(hbar(churn_rate(f, "PaymentMethod"), 330))
+
+        with c3:
+            with st.container(key="card_net"):
+                title("Churn Rate by InternetService")
+                show(hbar(churn_rate(f, "InternetService"), 330))
+
+        # ---------------- row B ----------------
+        b1, b2, b3, b4 = st.columns([3, 1.6, 1.6, 1.6])
+        with b1:
+            with st.container(key="card_contract"):
+                title("Churn Rate by Contract")
+                show(vbar(churn_rate(f, "Contract", ["Month-to-month", "One year", "Two year"]), 270))
+        with b2:
+            with st.container(key="card_gender"):
+                title("Churn Rate by gender")
+                show(vbar(churn_rate(f, "gender", ["Female", "Male"]), 270))
+        with b3:
+            with st.container(key="card_partner"):
+                title("Churn Rate by Partner")
+                show(vbar(churn_rate(f, "Partner", ["No", "Yes"]), 270))
+        with b4:
+            with st.container(key="card_dep"):
+                title("Churn Rate by Dependents")
+                show(vbar(churn_rate(f, "Dependents", ["No", "Yes"]), 270))
+
+        # ---------------- row C ----------------
+        d1, d2, d3 = st.columns([3, 3.2, 1.9])
+
+        with d1:
+            with st.container(key="card_tenure"):
+                title("Churn Rate by Tenure Group")
+                tg = churn_rate(
+                    f, "TenureGroup",
+                    ["0-12 Months", "13-24 Months", "25-48 Months", "49+ Months"],
+                )
+                fig = go.Figure(
+                    go.Scatter(
+                        x=tg.index.astype(str),
+                        y=tg.values,
+                        mode="lines+markers+text",
+                        fill="tozeroy",
+                        fillcolor="rgba(91,60,145,0.40)",
+                        line=dict(color=PURPLE_BAR, width=3),
+                        marker=dict(color=PURPLE_BAR, size=9),
+                        text=[f"{v:.2f}%" for v in tg.values],
+                        textposition="top center",
+                        textfont=dict(color=TEXT_DARK, size=13),
+                        cliponaxis=False,
+                        hovertemplate="%{x}: %{text}<extra></extra>",
+                    )
+                )
+                base_layout(fig, 290)
+                fig.update_xaxes(showgrid=False, tickfont=dict(color=TEXT_DARK, size=13))
+                fig.update_yaxes(visible=False, range=[0, max(tg.max(), 1) * 1.35])
+                show(fig)
+
+        with d2:
+            with st.container(key="card_clv"):
+                title("Average Customer Lifetime Value by Contract")
+                clv = f.groupby("Contract")["TotalCharges"].mean()
+                clv = clv.reindex([c for c in ["Two year", "One year", "Month-to-month"] if c in clv.index])
+                fig = go.Figure(
+                    go.Bar(
+                        x=clv.values,
+                        y=clv.index,
+                        orientation="h",
+                        marker_color=PURPLE_BAR,
+                        text=[f"{v / 1000:.1f}K" for v in clv.values],
+                        textposition="outside",
+                        cliponaxis=False,
+                        textfont=dict(color=TEXT_DARK, size=13),
+                        hovertemplate="%{y}: $%{x:,.0f}<extra></extra>",
+                    )
+                )
+                base_layout(fig, 290)
+                fig.update_yaxes(autorange="reversed", showgrid=False, tickfont=dict(color=TEXT_DARK, size=13))
+                fig.update_xaxes(visible=False, range=[0, max(clv.max(), 1) * 1.2])
+                fig.update_layout(bargap=0.25)
+                show(fig)
+
+        with d3:
+            with st.container(key="card_tech"):
+                title("Churn Rate by TechSupport")
+                ts = churn_rate(f, "TechSupport", ["No", "Yes", "No internet service"])
+                ts.index = [("No inte…" if i == "No internet service" else i) for i in ts.index]
+                show(vbar(ts, 290))
+
+    footer()
+
+
+# --------------------------------------------------------------------------
+# PAGE 2 – INSIGHTS
+# --------------------------------------------------------------------------
+def insights_page(df: pd.DataFrame) -> None:
+    header("insights")
+
+    total, churned = len(df), int(df["ChurnFlag"].sum())
+    rate = churned / total * 100
+    r = lambda col: df.groupby(col, observed=True)["ChurnFlag"].mean() * 100  # noqa: E731
+    contract, internet, pay = r("Contract"), r("InternetService"), r("PaymentMethod")
+    tech, tenure = r("TechSupport"), r("TenureGroup")
+    clv = df.groupby("Contract")["TotalCharges"].mean()
+
+    cols = st.columns(4)
+    kp = [
+        ("Churn Rate", f"{rate:.2f}%"),
+        ("Retention Rate", f"{100 - rate:.2f}%"),
+        ("Avg Tenure (months)", f"{df['tenure'].mean():.2f}"),
+        ("Avg Lifetime Value", fmt_k(df["TotalCharges"].mean(), "$")),
+    ]
+    for c, (lbl, val) in zip(cols, kp):
+        c.markdown(
+            f'<div class="kpi"><div class="body" style="text-align:left"><div class="lbl">{lbl}</div>'
+            f'<div class="val">{val}</div></div></div>',
+            unsafe_allow_html=True,
+        )
+
+    a, b, c = st.columns(3)
+    with a:
+        with st.container(key="card_i1"):
+            title("📉 Churn Patterns")
+            st.markdown(
+                f"""<div class="insight-text"><ul>
+<li>Month-to-month contracts churn the most (<b>{contract['Month-to-month']:.2f}%</b>) vs two-year (<b>{contract['Two year']:.2f}%</b>).</li>
+<li>Customers in their first 12 months churn at <b>{tenure['0-12 Months']:.2f}%</b>; 49+ months only <b>{tenure['49+ Months']:.2f}%</b>.</li>
+<li>Fiber optic churn (<b>{internet['Fiber optic']:.2f}%</b>) is more than double DSL (<b>{internet['DSL']:.2f}%</b>).</li>
+<li>Electronic check users churn at <b>{pay['Electronic check']:.2f}%</b>, the highest of all payment methods.</li>
+</ul></div>""",
+                unsafe_allow_html=True,
+            )
+    with b:
+        with st.container(key="card_i2"):
+            title("💰 Customer Lifetime Value")
+            st.markdown(
+                f"""<div class="insight-text"><ul>
+<li>Two-year contract customers generate the highest value: <b>${clv['Two year']:,.0f}</b> on average.</li>
+<li>One-year customers average <b>${clv['One year']:,.0f}</b>; month-to-month only <b>${clv['Month-to-month']:,.0f}</b>.</li>
+<li>Customer value rises with tenure – long-term customers contribute far more revenue.</li>
+</ul></div>""",
+                unsafe_allow_html=True,
+            )
+    with c:
+        with st.container(key="card_i3"):
+            title("📈 Retention Drivers")
+            st.markdown(
+                f"""<div class="insight-text"><ul>
+<li>Contract type is the strongest retention driver.</li>
+<li>Tech support matters: churn is <b>{tech['No']:.2f}%</b> without it vs <b>{tech['Yes']:.2f}%</b> with it.</li>
+<li>Long-term relationships steadily reduce churn risk.</li>
+</ul></div>""",
+                unsafe_allow_html=True,
+            )
+
+    with st.container(key="card_recs"):
+        title("💡 Business Recommendations")
+        recs = [
+            ("Promote Long-Term Contracts", "Encourage customers to move from month-to-month plans to annual or two-year contracts."),
+            ("Improve Customer Onboarding", "Strengthen engagement during the first 12 months to reduce early-stage churn."),
+            ("Investigate Fiber Optic Churn", "Analyse service quality, pricing and satisfaction among Fiber Optic users."),
+            ("Encourage Automatic Payments", "Promote automatic payment methods to improve customer retention."),
+            ("Bundle Tech Support Services", "Offer bundled support plans to increase satisfaction and reduce churn."),
+        ]
+        rc = st.columns(5)
+        for i, (col, (h, t)) in enumerate(zip(rc, recs), start=1):
+            col.markdown(
+                f'<div class="insight-text"><span class="rec-num">{i}. {h}</span><br>{t}</div>',
+                unsafe_allow_html=True,
+            )
+
+    st.markdown(
+        f"""
+<div class="on-dark" style="margin-top:6px">
+  <b>Project:</b> Future Interns – Data Science &amp; Analytics Internship, Task 2 ·
+  <b>Author:</b> Priyam Singh ·
+  <a href="{GITHUB_URL}" target="_blank" style="color:#FFD166 !important;font-weight:700">GitHub repository</a>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+    footer()
+
+
+# --------------------------------------------------------------------------
+# ROUTER
+# --------------------------------------------------------------------------
+data = load_data()
+page = st.query_params.get("page", "dashboard")
+if page == "insights":
+    insights_page(data)
+else:
+    dashboard_page(data)
